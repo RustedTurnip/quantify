@@ -24,14 +24,14 @@ const (
 	FieldContainerName ResourceField = "container_name"
 )
 
-// Option defines a function for supplying the reporter constructor with certain
+// Option defines a function for supplying the Reporter constructor with certain
 // configurations.
-type Option func(reporter *reporter) error
+type Option func(reporter *Reporter) error
 
 // configure will use the default options specified under getters to attempt to
 // populate any remaining ResourceFields that weren't supplied as options to
-// the reporter constructor.
-func (r *reporter) configure() error {
+// the Reporter constructor.
+func (r *Reporter) configure() error {
 
 	for option, _ := range configurations[r.resourceType] {
 
@@ -82,7 +82,7 @@ var (
 	// getters maps each ResourceField to it's default "getter" option.
 	getters = map[ResourceField]Option{
 
-		FieldProjectId: func(r *reporter) error {
+		FieldProjectId: func(r *Reporter) error {
 
 			pId, err := metadata.ProjectID()
 			if err != nil {
@@ -93,7 +93,7 @@ var (
 			return nil
 		},
 
-		FieldClusterName: func(r *reporter) error {
+		FieldClusterName: func(r *Reporter) error {
 
 			cn, err := metadata.InstanceAttributeValue("cluster-name")
 			if err != nil {
@@ -104,7 +104,7 @@ var (
 			return nil
 		},
 
-		FieldInstanceId: func(r *reporter) error {
+		FieldInstanceId: func(r *Reporter) error {
 			iId, err := metadata.InstanceID()
 			if err != nil {
 				return err
@@ -114,7 +114,7 @@ var (
 			return nil
 		},
 
-		FieldZone: func(r *reporter) error {
+		FieldZone: func(r *Reporter) error {
 			z, err := metadata.InstanceAttributeValue("cluster-location")
 			if err != nil {
 				return err
@@ -124,7 +124,7 @@ var (
 			return nil
 		},
 
-		FieldNamespaceId: func(r *reporter) error {
+		FieldNamespaceId: func(r *Reporter) error {
 			ns := os.Getenv("NAMESPACE")
 			if ns == "" {
 				return errors.New("missing field") // TODO extract error
@@ -134,7 +134,7 @@ var (
 			return nil
 		},
 
-		FieldPodId: func(r *reporter) error {
+		FieldPodId: func(r *Reporter) error {
 			pId := os.Getenv("POD_ID")
 			if pId == "" {
 				return errors.New("missing field") // TODO extract error
@@ -144,7 +144,7 @@ var (
 			return nil
 		},
 
-		FieldContainerName: func(r *reporter) error {
+		FieldContainerName: func(r *Reporter) error {
 			cn := os.Getenv("CONTAINER_NAME")
 			if cn == "" {
 				return errors.New("missing field") // TODO extract error
@@ -156,60 +156,60 @@ var (
 	}
 )
 
-// addConfigOption is used to add a provided ResourceField to the reporter's config.
+// addConfigOption is used to add a provided ResourceField to the Reporter's config.
 //
-// If the ResourceField isn't required for the reporter's config, the option will
+// If the ResourceField isn't required for the Reporter's config, the option will
 // be ignored.
-func (r *reporter) addConfigOption(field ResourceField, value string) {
+func (r *Reporter) addConfigOption(field ResourceField, value string) {
 	if _, ok := configurations[r.resourceType][field]; ok {
 		r.resourceConfig[string(field)] = value
 	}
 }
 
 func WithOptionProjectId(projectId string) Option {
-	return func(r *reporter) error {
+	return func(r *Reporter) error {
 		r.addConfigOption(FieldProjectId, projectId)
 		return nil
 	}
 }
 
 func WithOptionClusterName(clusterName string) Option {
-	return func(r *reporter) error {
+	return func(r *Reporter) error {
 		r.addConfigOption(FieldClusterName, clusterName)
 		return nil
 	}
 }
 
 func WithOptionInstanceId(instanceId string) Option {
-	return func(r *reporter) error {
+	return func(r *Reporter) error {
 		r.addConfigOption(FieldInstanceId, instanceId)
 		return nil
 	}
 }
 
 func WithOptionZone(zone string) Option {
-	return func(r *reporter) error {
+	return func(r *Reporter) error {
 		r.addConfigOption(FieldZone, zone)
 		return nil
 	}
 }
 
 func WithOptionNamespaceId(namespaceId string) Option {
-	return func(r *reporter) error {
+	return func(r *Reporter) error {
 		r.addConfigOption(FieldNamespaceId, namespaceId)
 		return nil
 	}
 }
 
 func WithOptionPodId(podId string) Option {
-	return func(r *reporter) error {
+	return func(r *Reporter) error {
 		r.addConfigOption(FieldPodId, podId)
 		return nil
 	}
 }
 
 func WithOptionContainerName(containerName string) Option {
-	return func(r *reporter) error {
+	return func(r *Reporter) error {
 		r.addConfigOption(FieldContainerName, containerName)
 		return nil
 	}

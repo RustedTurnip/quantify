@@ -26,9 +26,9 @@ type metricCounter struct {
 	counter *counter
 }
 
-// reporter implements a client that reports user defined metrics to Google
+// Reporter implements a client that reports user defined metrics to Google
 // Cloud Monitoring.
-type reporter struct {
+type Reporter struct {
 	resourceType   ResourceType
 	resourceConfig map[string]string
 	client         *monitoring.MetricClient
@@ -37,7 +37,7 @@ type reporter struct {
 	onReportError  func(err error)
 }
 
-// New returns an instantiated reporter, or returns an error if instantiation
+// New returns an instantiated Reporter, or returns an error if instantiation
 // fails.
 //
 // The resourceType parameter takes a ResourceType to define how metrics should be
@@ -45,17 +45,17 @@ type reporter struct {
 //
 // client is the MetricClient required to interface with Google Cloud Monitoring.
 //
-// onReportError is a required error handler to tell the reporter how it should handle an
+// onReportError is a required error handler to tell the Reporter how it should handle an
 // error when an attempt at reporting metrics fails. Metrics aren't necessarily reported
 // when they are initially recorded, which is why this parameter is required.
 //
 // options allow the user to provide custom configurations as a list of Options.
-func New(resourceType ResourceType, client *monitoring.MetricClient, onReportError func(error), options ...Option) (*reporter, error) {
+func New(resourceType ResourceType, client *monitoring.MetricClient, onReportError func(error), options ...Option) (*Reporter, error) {
 
 	c := cron.New(cron.WithSeconds())
 
-	// build reporter
-	reporter := &reporter{
+	// build Reporter
+	reporter := &Reporter{
 		resourceType:   resourceType,
 		resourceConfig: make(map[string]string),
 		client:         client,
@@ -88,7 +88,7 @@ func New(resourceType ResourceType, client *monitoring.MetricClient, onReportErr
 
 // CreateCounter creates a counter that can be used to track a tally of
 // singular, arbitrary, occurrences.
-func (r *reporter) CreateCounter(name string, labels map[string]string) *counter {
+func (r *Reporter) CreateCounter(name string, labels map[string]string) *counter {
 
 	mc := &metricCounter{
 		metric: &metricpb.Metric{
@@ -104,7 +104,7 @@ func (r *reporter) CreateCounter(name string, labels map[string]string) *counter
 
 // report flushes any metrics that can only be reported periodically,
 // like counters.
-func (r *reporter) report() {
+func (r *Reporter) report() {
 
 	now := time.Now()
 
@@ -149,7 +149,7 @@ func (r *reporter) report() {
 	})
 }
 
-func (r *reporter) Terminate() {
+func (r *Reporter) Terminate() {
 
 	r.report()
 
