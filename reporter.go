@@ -98,8 +98,8 @@ func (r *Reporter) CreateCounter(name string, labels map[string]string) *Counter
 		counter: newCounter(),
 	}
 
-	r.counters.LoadOrStore(name, mc)
-	return mc.counter
+	counter, _ := r.counters.LoadOrStore(name, mc)
+	return counter.(*Counter)
 }
 
 // report flushes any metrics that can only be reported periodically,
