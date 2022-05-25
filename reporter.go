@@ -19,11 +19,11 @@ const (
 	counterSchedule  = "0 * * * * *"
 )
 
-// metricCounter defines a wrapper around the counter unit, tethering it to
+// metricCounter defines a wrapper around the Counter unit, tethering it to
 // a Metric config.
 type metricCounter struct {
 	metric  *metricpb.Metric
-	counter *counter
+	counter *Counter
 }
 
 // Reporter implements a client that reports user defined metrics to Google
@@ -86,9 +86,9 @@ func New(resourceType ResourceType, client *monitoring.MetricClient, onReportErr
 	return reporter, nil
 }
 
-// CreateCounter creates a counter that can be used to track a tally of
+// CreateCounter creates a Counter that can be used to track a tally of
 // singular, arbitrary, occurrences.
-func (r *Reporter) CreateCounter(name string, labels map[string]string) *counter {
+func (r *Reporter) CreateCounter(name string, labels map[string]string) *Counter {
 
 	mc := &metricCounter{
 		metric: &metricpb.Metric{
