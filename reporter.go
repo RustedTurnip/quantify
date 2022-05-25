@@ -3,7 +3,6 @@ package cloud_metrics
 import (
 	"context"
 	"path"
-	"sync"
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
@@ -33,7 +32,7 @@ type Reporter struct {
 	resourceConfig map[string]string
 	client         *monitoring.MetricClient
 	scheduler      *cron.Cron
-	counters       *sync.Map
+	counters       []*metricCounter
 	onReportError  func(err error)
 }
 
@@ -60,7 +59,6 @@ func New(resourceType ResourceType, client *monitoring.MetricClient, onReportErr
 		resourceConfig: make(map[string]string),
 		client:         client,
 		scheduler:      c,
-		counters:       &sync.Map{},
 		onReportError:  onReportError,
 	}
 
@@ -98,8 +96,8 @@ func (r *Reporter) CreateCounter(name string, labels map[string]string) *Counter
 		counter: newCounter(),
 	}
 
-	counter, _ := r.counters.LoadOrStore(name, mc)
-	return counter.(*Counter)
+	r.counters = append(r.counters, mc)
+	return mc.counter
 }
 
 // report flushes any metrics that can only be reported periodically,
@@ -113,9 +111,7 @@ func (r *Reporter) report() {
 	// end = 59th second of start minute
 	end := start.Add(time.Second * 59)
 
-	r.counters.Range(func(key, value any) bool {
-
-		mc := value.(*metricCounter)
+	for _, mc := range r.counters {
 
 		req := &monitoringpb.CreateTimeSeriesRequest{
 			Name: "projects/" + r.resourceConfig["project_id"],
@@ -144,9 +140,7 @@ func (r *Reporter) report() {
 		if err != nil {
 			r.onReportError(err)
 		}
-
-		return true
-	})
+	}
 }
 
 func (r *Reporter) Terminate() {
