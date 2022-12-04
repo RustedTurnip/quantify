@@ -27,47 +27,47 @@ type metricCounter struct {
 	counter *Counter
 }
 
-// Reporter implements a client that reports user defined metrics to Google
+// Quantifier implements a client that reports user defined metrics to Google
 // Cloud Monitoring.
-type Reporter struct {
+type Quantifier struct {
 	resourceName   string
 	resourceLabels map[string]string
 	client         *monitoring.MetricClient
 	scheduler      *cron.Cron
 	counters       []*metricCounter
-	errorHandler   func(*Reporter, error)
+	errorHandler   func(*Quantifier, error)
 }
 
-// New returns an instantiated Reporter, or returns an error if instantiation
+// New returns an instantiated Quantifier, or returns an error if instantiation
 // fails.
 //
 // options allow the user to provide custom configurations as a list of Options.
-func New(ctx context.Context, options ...Option) (*Reporter, error) {
+func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 
 	c := cron.New(cron.WithSeconds())
 
-	// build Reporter
-	reporter := &Reporter{
+	// build Quantifier
+	quantifier := &Quantifier{
 		scheduler: c,
 	}
 
 	for _, option := range options {
-		option(reporter)
+		option(quantifier)
 	}
 
-	// if reporter.client isn't supplied with options
-	if reporter.client == nil {
+	// if quantifier.client isn't supplied with options
+	if quantifier.client == nil {
 
 		client, err := monitoring.NewMetricClient(ctx)
 		if err != nil {
 			return nil, err
 		}
 
-		reporter.client = client
+		quantifier.client = client
 	}
 
-	// if reporter.resource isn't supplied with options
-	if reporter.resourceName == "" || reporter.resourceLabels == nil {
+	// if quantifier.resource isn't supplied with options
+	if quantifier.resourceName == "" || quantifier.resourceLabels == nil {
 
 		// set to be global resource
 		option := OptionWithResourceType(&Global{
@@ -75,32 +75,32 @@ func New(ctx context.Context, options ...Option) (*Reporter, error) {
 		})
 
 		// attempt to apply resource
-		err := option(reporter)
+		err := option(quantifier)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// if reporter.errorHandler isn't set
-	if reporter.errorHandler == nil {
+	// if quantifier.errorHandler isn't set
+	if quantifier.errorHandler == nil {
 
 		// set default behaviour to do nothing
-		reporter.errorHandler = func(r *Reporter, err error) {}
+		quantifier.errorHandler = func(r *Quantifier, err error) {}
 	}
 
 	// set report schedule
-	if _, err := reporter.scheduler.AddFunc(counterSchedule, reporter.report); err != nil {
+	if _, err := quantifier.scheduler.AddFunc(counterSchedule, quantifier.report); err != nil {
 		panic("bad schedule")
 	}
 
-	reporter.scheduler.Start()
+	quantifier.scheduler.Start()
 
-	return reporter, nil
+	return quantifier, nil
 }
 
 // CreateCounter creates a Counter that can be used to track a tally of
 // singular, arbitrary, occurrences.
-func (r *Reporter) CreateCounter(name string, labels map[string]string) *Counter {
+func (q *Quantifier) CreateCounter(name string, labels map[string]string) *Counter {
 
 	mc := &metricCounter{
 		metric: &metricpb.Metric{
@@ -110,13 +110,13 @@ func (r *Reporter) CreateCounter(name string, labels map[string]string) *Counter
 		counter: newCounter(),
 	}
 
-	r.counters = append(r.counters, mc)
+	q.counters = append(q.counters, mc)
 	return mc.counter
 }
 
 // report flushes any metrics that can only be reported periodically,
 // like counters.
-func (r *Reporter) report() {
+func (q *Quantifier) report() {
 
 	now := time.Now()
 
@@ -125,17 +125,17 @@ func (r *Reporter) report() {
 	// end = 59th second of start minute
 	end := start.Add(time.Second * 59)
 
-	for _, mc := range r.counters {
+	for _, mc := range q.counters {
 
 		req := &monitoringpb.CreateTimeSeriesRequest{
-			Name: "projects/" + r.resourceLabels["project_id"],
+			Name: "projects/" + q.resourceLabels["project_id"],
 			TimeSeries: []*monitoringpb.TimeSeries{
 				{
 					Metric:     mc.metric,
 					MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
 					Resource: &monitoredres.MonitoredResource{
-						Type:   r.resourceName,
-						Labels: r.resourceLabels,
+						Type:   q.resourceName,
+						Labels: q.resourceLabels,
 					},
 					Points: []*monitoringpb.Point{{
 						Interval: &monitoringpb.TimeInterval{
@@ -152,17 +152,17 @@ func (r *Reporter) report() {
 			},
 		}
 
-		err := r.client.CreateTimeSeries(context.Background(), req)
+		err := q.client.CreateTimeSeries(context.Background(), req)
 		if err != nil {
-			r.errorHandler(r, err)
+			q.errorHandler(q, err)
 		}
 	}
 }
 
-func (r *Reporter) Terminate() {
+func (q *Quantifier) Terminate() {
 
-	r.report()
+	q.report()
 
-	ctx := r.scheduler.Stop()
+	ctx := q.scheduler.Stop()
 	<-ctx.Done()
 }
