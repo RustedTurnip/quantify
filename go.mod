@@ -1,4 +1,4 @@
-module gitlab.com/botbits/cloud-metrics
+module quantify
 
 go 1.18
 

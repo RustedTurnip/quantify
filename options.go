@@ -1,4 +1,4 @@
-package cloud_metrics
+package quantify
 
 import (
 	"errors"

@@ -1,4 +1,6 @@
-package cloud_metrics
+// Package quantify provides a simplified set of tools for reporting custom
+// metrics to Google Cloud Metrics.
+package quantify
 
 import (
 	"context"
