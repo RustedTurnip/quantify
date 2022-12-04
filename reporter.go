@@ -28,50 +28,62 @@ type metricCounter struct {
 // Reporter implements a client that reports user defined metrics to Google
 // Cloud Monitoring.
 type Reporter struct {
-	resourceType   ResourceType
-	resourceConfig map[string]string
+	resourceName   string
+	resourceLabels map[string]string
 	client         *monitoring.MetricClient
 	scheduler      *cron.Cron
 	counters       []*metricCounter
-	onReportError  func(err error)
+	errorHandler   func(*Reporter, error)
 }
 
 // New returns an instantiated Reporter, or returns an error if instantiation
 // fails.
 //
-// The resourceType parameter takes a ResourceType to define how metrics should be
-// reported to Google Cloud.
-//
-// client is the MetricClient required to interface with Google Cloud Monitoring.
-//
-// onReportError is a required error handler to tell the Reporter how it should handle an
-// error when an attempt at reporting metrics fails. Metrics aren't necessarily reported
-// when they are initially recorded, which is why this parameter is required.
-//
 // options allow the user to provide custom configurations as a list of Options.
-func New(resourceType ResourceType, client *monitoring.MetricClient, onReportError func(error), options ...Option) (*Reporter, error) {
+func New(ctx context.Context, options ...Option) (*Reporter, error) {
 
 	c := cron.New(cron.WithSeconds())
 
 	// build Reporter
 	reporter := &Reporter{
-		resourceType:   resourceType,
-		resourceConfig: make(map[string]string),
-		client:         client,
-		scheduler:      c,
-		onReportError:  onReportError,
+		scheduler: c,
 	}
 
 	for _, option := range options {
-		if err := option(reporter); err != nil {
+		option(reporter)
+	}
+
+	// if reporter.client isn't supplied with options
+	if reporter.client == nil {
+
+		client, err := monitoring.NewMetricClient(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		reporter.client = client
+	}
+
+	// if reporter.resource isn't supplied with options
+	if reporter.resourceName == "" || reporter.resourceLabels == nil {
+
+		// set to be global resource
+		option := OptionWithResourceType(&Global{
+			ProjectId: DetectProjectId(),
+		})
+
+		// attempt to apply resource
+		err := option(reporter)
+		if err != nil {
 			return nil, err
 		}
 	}
 
-	// fetch required ResourceType's fields
-	err := reporter.configure()
-	if err != nil {
-		return nil, err
+	// if reporter.errorHandler isn't set
+	if reporter.errorHandler == nil {
+
+		// set default behaviour to do nothing
+		reporter.errorHandler = func(r *Reporter, err error) {}
 	}
 
 	// set report schedule
@@ -114,31 +126,33 @@ func (r *Reporter) report() {
 	for _, mc := range r.counters {
 
 		req := &monitoringpb.CreateTimeSeriesRequest{
-			Name: "projects/" + r.resourceConfig["project_id"],
-			TimeSeries: []*monitoringpb.TimeSeries{{
-				Metric:     mc.metric,
-				MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
-				Resource: &monitoredres.MonitoredResource{
-					Type:   string(r.resourceType),
-					Labels: r.resourceConfig,
-				},
-				Points: []*monitoringpb.Point{{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: timestamppb.New(start),
-						EndTime:   timestamppb.New(end),
+			Name: "projects/" + r.resourceLabels["project_id"],
+			TimeSeries: []*monitoringpb.TimeSeries{
+				{
+					Metric:     mc.metric,
+					MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
+					Resource: &monitoredres.MonitoredResource{
+						Type:   r.resourceName,
+						Labels: r.resourceLabels,
 					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: mc.counter.fetchAndReset(),
+					Points: []*monitoringpb.Point{{
+						Interval: &monitoringpb.TimeInterval{
+							StartTime: timestamppb.New(start),
+							EndTime:   timestamppb.New(end),
 						},
-					},
-				}},
-			}},
+						Value: &monitoringpb.TypedValue{
+							Value: &monitoringpb.TypedValue_Int64Value{
+								Int64Value: mc.counter.fetchAndReset(),
+							},
+						},
+					}},
+				},
+			},
 		}
 
 		err := r.client.CreateTimeSeries(context.Background(), req)
 		if err != nil {
-			r.onReportError(err)
+			r.errorHandler(r, err)
 		}
 	}
 }
