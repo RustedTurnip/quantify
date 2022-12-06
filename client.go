@@ -5,14 +5,12 @@ package quantify
 import (
 	"context"
 	"path"
-	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
 	"github.com/robfig/cron/v3"
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -30,6 +28,7 @@ type metricCounter struct {
 // Quantifier implements a client that reports user defined metrics to Google
 // Cloud Monitoring.
 type Quantifier struct {
+	ctx            context.Context
 	resourceName   string
 	resourceLabels map[string]string
 	client         *monitoring.MetricClient
@@ -48,6 +47,7 @@ func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 
 	// build Quantifier
 	quantifier := &Quantifier{
+		ctx:       ctx,
 		scheduler: c,
 	}
 
@@ -107,7 +107,7 @@ func (q *Quantifier) CreateCounter(name string, labels map[string]string) *Count
 			Type:   path.Join(customMetricRoot, name),
 			Labels: labels,
 		},
-		counter: newCounter(),
+		counter: newCounter(60),
 	}
 
 	q.counters = append(q.counters, mc)
@@ -117,13 +117,6 @@ func (q *Quantifier) CreateCounter(name string, labels map[string]string) *Count
 // report flushes any metrics that can only be reported periodically,
 // like counters.
 func (q *Quantifier) report() {
-
-	now := time.Now()
-
-	// start = 0th second of minute before now
-	start := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), 0, 0, time.Local).Add(time.Minute * -1)
-	// end = 59th second of start minute
-	end := start.Add(time.Second * 59)
 
 	for _, mc := range q.counters {
 
@@ -137,17 +130,7 @@ func (q *Quantifier) report() {
 						Type:   q.resourceName,
 						Labels: q.resourceLabels,
 					},
-					Points: []*monitoringpb.Point{{
-						Interval: &monitoringpb.TimeInterval{
-							StartTime: timestamppb.New(start),
-							EndTime:   timestamppb.New(end),
-						},
-						Value: &monitoringpb.TypedValue{
-							Value: &monitoringpb.TypedValue_Int64Value{
-								Int64Value: mc.counter.fetchAndReset(),
-							},
-						},
-					}},
+					Points: mc.counter.takePoints(),
 				},
 			},
 		}
