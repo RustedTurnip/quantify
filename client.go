@@ -5,6 +5,8 @@ package quantify
 import (
 	"context"
 	"path"
+	"sync"
+	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
 	"github.com/robfig/cron/v3"
@@ -16,6 +18,8 @@ import (
 const (
 	customMetricRoot = "custom.googleapis.com"
 	counterSchedule  = "0 * * * * *"
+
+	defaultRefreshInterval = time.Minute
 )
 
 // metricCounter defines a wrapper around the Counter unit, tethering it to
@@ -28,13 +32,18 @@ type metricCounter struct {
 // Quantifier implements a client that reports user defined metrics to Google
 // Cloud Monitoring.
 type Quantifier struct {
-	ctx            context.Context
-	resourceName   string
-	resourceLabels map[string]string
-	client         *monitoring.MetricClient
-	scheduler      *cron.Cron
-	counters       []*metricCounter
-	errorHandler   func(*Quantifier, error)
+	ctx             context.Context
+	mu              *sync.Mutex
+	stop            chan struct{}
+	stopped         chan struct{}
+	running         bool
+	resourceName    string
+	resourceLabels  map[string]string
+	client          *monitoring.MetricClient
+	scheduler       *cron.Cron
+	counters        []*metricCounter
+	errorHandler    func(*Quantifier, error)
+	refreshInterval time.Duration
 }
 
 // New returns an instantiated Quantifier, or returns an error if instantiation
@@ -47,8 +56,11 @@ func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 
 	// build Quantifier
 	quantifier := &Quantifier{
-		ctx:       ctx,
-		scheduler: c,
+		ctx:             ctx,
+		mu:              &sync.Mutex{},
+		stopped:         make(chan struct{}),
+		scheduler:       c,
+		refreshInterval: defaultRefreshInterval,
 	}
 
 	for _, option := range options {
@@ -93,9 +105,58 @@ func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 		panic("bad schedule")
 	}
 
-	quantifier.scheduler.Start()
+	go quantifier.run()
 
 	return quantifier, nil
+}
+
+// run starts execution of the client providing it isn't already running. Whilst
+// running, it will attempt to push recorded data at the interval provided.
+//
+// run also monitors stop signals and ctc cancelling to cease operations when
+// required.
+func (q *Quantifier) run() {
+
+	q.mu.Lock()
+
+	if q.running {
+		q.mu.Unlock()
+		return
+	}
+
+	q.running = true
+	q.stop = make(chan struct{})
+	q.mu.Unlock()
+
+	t := time.NewTicker(q.refreshInterval)
+
+	stop := func() {
+		q.mu.Lock()
+		q.running = false
+		close(q.stop)
+		q.mu.Unlock()
+	}
+
+	for {
+		select {
+
+		// when interval passes, send data
+		case <-t.C:
+			q.report()
+
+		// when context cancelled, exit immediately
+		case <-q.ctx.Done():
+			stop()
+			return
+
+		// when stop requested, stop gracefully
+		case <-q.stop:
+			q.report() // flush any remaining counts
+			stop()
+			return
+
+		}
+	}
 }
 
 // CreateCounter creates a Counter that can be used to track a tally of
@@ -142,10 +203,21 @@ func (q *Quantifier) report() {
 	}
 }
 
-func (q *Quantifier) Terminate() {
+// Stop can be used to gracefully terminat the Quantifier client. It will attempt
+// to push any remaining data that has already been recorded, and then cease
+// internal operations.
+func (q *Quantifier) Stop() {
 
-	q.report()
+	q.mu.Lock()
+	if !q.running {
+		q.mu.Unlock()
+		return
+	}
 
-	ctx := q.scheduler.Stop()
-	<-ctx.Done()
+	// signal stop
+	q.stop <- struct{}{}
+	q.mu.Unlock()
+
+	// wait for stopped
+	<-q.stopped
 }

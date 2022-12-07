@@ -2,6 +2,7 @@ package quantify
 
 import (
 	"errors"
+	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
 )
@@ -48,6 +49,15 @@ func OptionWithResourceType(resource Resource) Option {
 func OptionWithErrorHandler(fn func(*Quantifier, error)) Option {
 	return func(quantifier *Quantifier) error {
 		quantifier.errorHandler = fn
+		return nil
+	}
+}
+
+// OptionWithRefreshInterval allows a way to specify how regularly metrics should
+// be pushed to Google Cloud. This does not affect how counts are aggregated.
+func OptionWithRefreshInterval(interval time.Duration) Option {
+	return func(q *Quantifier) error {
+		q.refreshInterval = interval
 		return nil
 	}
 }
