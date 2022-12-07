@@ -161,14 +161,18 @@ func (q *Quantifier) run() {
 
 // CreateCounter creates a Counter that can be used to track a tally of
 // singular, arbitrary, occurrences.
-func (q *Quantifier) CreateCounter(name string, labels map[string]string) *Counter {
+//
+// interval is used to specify how counts should be aggregated, or in other
+// words, what level of precision is required when tracking cumulative
+// amounts. This value represents seconds.
+func (q *Quantifier) CreateCounter(name string, labels map[string]string, interval int64) *Counter {
 
 	mc := &metricCounter{
 		metric: &metricpb.Metric{
 			Type:   path.Join(customMetricRoot, name),
 			Labels: labels,
 		},
-		counter: newCounter(60),
+		counter: newCounter(interval),
 	}
 
 	q.counters = append(q.counters, mc)
