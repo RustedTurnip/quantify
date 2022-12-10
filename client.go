@@ -207,9 +207,12 @@ func (q *Quantifier) report() {
 	}
 }
 
-// Stop can be used to gracefully terminat the Quantifier client. It will attempt
+// Stop can be used to gracefully terminate the Quantifier client. It will attempt
 // to push any remaining data that has already been recorded, and then cease
 // internal operations.
+//
+// Note: calling count on any of Quantifier's child counters after this call is made
+// won't result in reported metrics as Quantifier will have ceased operations.
 func (q *Quantifier) Stop() {
 
 	q.mu.Lock()
