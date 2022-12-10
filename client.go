@@ -15,6 +15,11 @@ import (
 )
 
 const (
+	// see https://cloud.google.com/monitoring/api/metrics_gcp for more info on
+	// metric roots.
+	//
+	// as this client is designed for custom metrics, this root is non-configurable
+	// (see https://cloud.google.com/monitoring/custom-metrics#identifier).
 	customMetricRoot = "custom.googleapis.com"
 
 	defaultRefreshInterval = time.Minute
