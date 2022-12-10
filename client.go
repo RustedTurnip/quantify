@@ -9,7 +9,6 @@ import (
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
-	"github.com/robfig/cron/v3"
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
@@ -17,7 +16,6 @@ import (
 
 const (
 	customMetricRoot = "custom.googleapis.com"
-	counterSchedule  = "0 * * * * *"
 
 	defaultRefreshInterval = time.Minute
 )
@@ -40,7 +38,6 @@ type Quantifier struct {
 	resourceName    string
 	resourceLabels  map[string]string
 	client          *monitoring.MetricClient
-	scheduler       *cron.Cron
 	counters        []*metricCounter
 	errorHandler    func(*Quantifier, error)
 	refreshInterval time.Duration
@@ -52,14 +49,11 @@ type Quantifier struct {
 // options allow the user to provide custom configurations as a list of Options.
 func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 
-	c := cron.New(cron.WithSeconds())
-
 	// build Quantifier
 	quantifier := &Quantifier{
 		ctx:             ctx,
 		mu:              &sync.Mutex{},
 		stopped:         make(chan struct{}),
-		scheduler:       c,
 		refreshInterval: defaultRefreshInterval,
 	}
 
@@ -98,11 +92,6 @@ func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 
 		// set default behaviour to do nothing
 		quantifier.errorHandler = func(r *Quantifier, err error) {}
-	}
-
-	// set report schedule
-	if _, err := quantifier.scheduler.AddFunc(counterSchedule, quantifier.report); err != nil {
-		panic("bad schedule")
 	}
 
 	go quantifier.run()
