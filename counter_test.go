@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type mockClock struct {
@@ -128,7 +126,7 @@ func TestTakePoints(t *testing.T) {
 		counterInterval int64
 		startTime       time.Time
 		setup           []func(*Counter)
-		expectedResult  []*monitoringpb.Point
+		expectedResult  []*count
 	}{
 		{
 			name:            "Single Thread, Multiple Instances",
@@ -164,40 +162,16 @@ func TestTakePoints(t *testing.T) {
 					}
 				},
 			},
-			expectedResult: []*monitoringpb.Point{
+			expectedResult: []*count{
 				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1670681770,
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1670681779,
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 10,
-						},
-					},
+					start: time.Unix(1670681770, 0),
+					end:   time.Unix(1670681780, 0),
+					count: 10,
 				},
 				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1670681780,
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1670681789,
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 25,
-						},
-					},
+					start: time.Unix(1670681780, 0),
+					end:   time.Unix(1670681790, 0),
+					count: 25,
 				},
 			},
 		},
@@ -261,40 +235,16 @@ func TestTakePoints(t *testing.T) {
 					}
 				},
 			},
-			expectedResult: []*monitoringpb.Point{
+			expectedResult: []*count{
 				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1670681760,
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1670681819,
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 250,
-						},
-					},
+					start: time.Unix(1670681760, 0),
+					end:   time.Unix(1670681820, 0),
+					count: 250,
 				},
 				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1670681820,
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1670681879,
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 50,
-						},
-					},
+					start: time.Unix(1670681820, 0),
+					end:   time.Unix(1670681880, 0),
+					count: 50,
 				},
 			},
 		},
@@ -339,40 +289,16 @@ func TestTakePoints(t *testing.T) {
 					}
 				},
 			},
-			expectedResult: []*monitoringpb.Point{
+			expectedResult: []*count{
 				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1670681770,
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1670681779,
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 10,
-						},
-					},
+					start: time.Unix(1670681770, 0),
+					end:   time.Unix(1670681780, 0),
+					count: 10,
 				},
 				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1670681780,
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1670681789,
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 25,
-						},
-					},
+					start: time.Unix(1670681780, 0),
+					end:   time.Unix(1670681790, 0),
+					count: 25,
 				},
 			},
 		},
@@ -399,7 +325,7 @@ func TestTakePoints(t *testing.T) {
 		assert.Equalf(t, test.expectedResult, counter.takePoints(), "%s: unexpected response", test.name)
 
 		// check cleared
-		assert.Equalf(t, make([]*monitoringpb.Point, 0), counter.takePoints(), "%s: unexpected response", test.name)
+		assert.Equalf(t, make([]*count, 0), counter.takePoints(), "%s: unexpected response", test.name)
 	}
 
 }

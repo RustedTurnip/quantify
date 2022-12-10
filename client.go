@@ -12,6 +12,7 @@ import (
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -184,6 +185,11 @@ func (q *Quantifier) report() {
 
 	for _, mc := range q.counters {
 
+		points := make([]*monitoringpb.Point, 0)
+		for _, point := range mc.counter.takePoints() {
+			points = append(points, countToMetricPointProto(point))
+		}
+
 		req := &monitoringpb.CreateTimeSeriesRequest{
 			Name: "projects/" + q.resourceLabels["project_id"],
 			TimeSeries: []*monitoringpb.TimeSeries{
@@ -194,7 +200,7 @@ func (q *Quantifier) report() {
 						Type:   q.resourceName,
 						Labels: q.resourceLabels,
 					},
-					Points: mc.counter.takePoints(),
+					Points: points,
 				},
 			},
 		}
@@ -226,4 +232,22 @@ func (q *Quantifier) Stop() {
 
 	// wait for stopped
 	<-q.stopped
+}
+
+// countToMetricPointProto converts a count into a monitoringpb.Point.
+func countToMetricPointProto(count *count) *monitoringpb.Point {
+	return &monitoringpb.Point{
+		Interval: &monitoringpb.TimeInterval{
+			StartTime: timestamppb.New(count.start),
+
+			// minus millisecond because: "The new start time must be at least a
+			// millisecond after the end time of the previous interval."
+			EndTime: timestamppb.New(count.end.Add(time.Millisecond * -1)),
+		},
+		Value: &monitoringpb.TypedValue{
+			Value: &monitoringpb.TypedValue_Int64Value{
+				Int64Value: count.count,
+			},
+		},
+	}
 }

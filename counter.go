@@ -5,10 +5,20 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// count represents a tally over a duration of time.
+type count struct {
+
+	// start is used to mark the count's duration start time (inclusive)
+	start time.Time
+
+	// end is used to mark the count's duration end time (exclusive)
+	end time.Time
+
+	// count is the total recorded within the specified duration.
+	count int64
+}
 
 // Counter implements a thread-safe Counter that can be used to record a tally which is
 // racked up through calling Counter.Count.
@@ -65,7 +75,7 @@ func (c *Counter) getKey() int64 {
 // passed, and removes them from the counter. If an interval is being counted actively
 // when this is called, then that won't be retrieved until this is re-called after the
 // time period has concluded.
-func (c *Counter) takePoints() []*monitoringpb.Point {
+func (c *Counter) takePoints() []*count {
 
 	c.mu.Lock()
 
@@ -83,7 +93,7 @@ func (c *Counter) takePoints() []*monitoringpb.Point {
 		}
 
 		completedCounts[keyInt] = valueInt
-	
+
 		c.counts.Delete(key)
 
 		return true
@@ -91,29 +101,13 @@ func (c *Counter) takePoints() []*monitoringpb.Point {
 
 	c.mu.Unlock()
 
-	response := make([]*monitoringpb.Point, 0)
+	response := make([]*count, 0)
 
 	for k, v := range completedCounts {
-
-		startPb := &timestamppb.Timestamp{
-			Seconds: k,
-		}
-
-		// minus one millisecond because: "The new start time must be at least
-		// a millisecond after the end time of the previous interval."
-		endTime := time.Unix(k+c.interval, 0).Add(time.Millisecond * -1)
-		endPb := timestamppb.New(endTime)
-
-		response = append(response, &monitoringpb.Point{
-			Interval: &monitoringpb.TimeInterval{
-				StartTime: startPb,
-				EndTime:   endPb,
-			},
-			Value: &monitoringpb.TypedValue{
-				Value: &monitoringpb.TypedValue_Int64Value{
-					Int64Value: v,
-				},
-			},
+		response = append(response, &count{
+			start: time.Unix(k, 0),
+			end:   time.Unix(k+c.interval, 0),
+			count: v,
 		})
 	}
 
