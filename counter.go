@@ -1,6 +1,7 @@
 package quantify
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -23,17 +24,25 @@ type Counter struct {
 	counts *sync.Map
 
 	mu *sync.Mutex
+
+	// clock used to retrieve time.
+	clock clock
 }
 
 // newCounter returns an instantiated Counter, storing the provided metric information
 // for reporting later.
-func newCounter(interval int64) *Counter {
+func newCounter(interval int64) (*Counter, error) {
+
+	if interval <= 0 {
+		return nil, errors.New("interval must be greater than 0")
+	}
 
 	return &Counter{
+		clock:    &realClock{},
 		interval: interval,
 		counts:   &sync.Map{},
 		mu:       &sync.Mutex{},
-	}
+	}, nil
 }
 
 // Count adds 1 to the running total of this Counter.
@@ -49,7 +58,7 @@ func (c *Counter) Count() {
 // getKey returns a unique key for the current time period using time.Now. The key
 // represents the starting time of the period as seconds since epoch.
 func (c *Counter) getKey() int64 {
-	return time.Now().Truncate(time.Second * time.Duration(c.interval)).Unix()
+	return c.clock.now().Truncate(time.Second * time.Duration(c.interval)).Unix()
 }
 
 // takePoints retrieves any outstanding counts for time intervals that have already
@@ -74,8 +83,7 @@ func (c *Counter) takePoints() []*monitoringpb.Point {
 		}
 
 		completedCounts[keyInt] = valueInt
-
-		// TODO confirm it is safe to delete in this loop
+	
 		c.counts.Delete(key)
 
 		return true
@@ -85,7 +93,6 @@ func (c *Counter) takePoints() []*monitoringpb.Point {
 
 	response := make([]*monitoringpb.Point, 0)
 
-	// TODO refactor/tidy this up
 	for k, v := range completedCounts {
 
 		startPb := &timestamppb.Timestamp{

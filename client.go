@@ -159,18 +159,23 @@ func (q *Quantifier) run() {
 // interval is used to specify how counts should be aggregated, or in other
 // words, what level of precision is required when tracking cumulative
 // amounts. This value represents seconds.
-func (q *Quantifier) CreateCounter(name string, labels map[string]string, interval int64) *Counter {
+func (q *Quantifier) CreateCounter(name string, labels map[string]string, interval int64) (*Counter, error) {
+
+	counter, err := newCounter(interval)
+	if err != nil {
+		return nil, err
+	}
 
 	mc := &metricCounter{
 		metric: &metricpb.Metric{
 			Type:   path.Join(customMetricRoot, name),
 			Labels: labels,
 		},
-		counter: newCounter(interval),
+		counter: counter,
 	}
 
 	q.counters = append(q.counters, mc)
-	return mc.counter
+	return mc.counter, nil
 }
 
 // report flushes any metrics that can only be reported periodically,
