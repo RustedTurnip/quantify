@@ -13,6 +13,8 @@ const (
 	resourceNameGlobal       = "global"
 	resourceNameGkeContainer = "gke_container"
 	resourceNameGceInstance  = "gce_instance"
+	resourceNameGenericNode  = "generic_node"
+	resourceNameGenericTask  = "generic_task"
 )
 
 var (
@@ -43,6 +45,21 @@ type GkeContainer struct {
 	ContainerName string `cloud_resource_field:"container_name"`
 }
 
+type GenericNode struct {
+	ProjectId string `cloud_resource_field:"project_id"`
+	Location  string `cloud_resource_field:"location"`
+	Namespace string `cloud_resource_field:"namespace"`
+	NodeId    string `cloud_resource_field:"node_id"`
+}
+
+type GenericTask struct {
+	ProjectId string `cloud_resource_field:"project_id"`
+	Location  string `cloud_resource_field:"location"`
+	Namespace string `cloud_resource_field:"namespace"`
+	Job       string `cloud_resource_field:"job"`
+	TaskId    string `cloud_resource_field:"task_id"`
+}
+
 func (g *Global) GetName() string {
 	return resourceNameGlobal
 }
@@ -53,6 +70,14 @@ func (gi *GceInstance) GetName() string {
 
 func (gc *GkeContainer) GetName() string {
 	return resourceNameGkeContainer
+}
+
+func (gn *GenericNode) GetName() string {
+	return resourceNameGenericNode
+}
+
+func (gt *GenericTask) GetName() string {
+	return resourceNameGenericTask
 }
 
 func flatten(v Resource) (map[string]string, error) {
