@@ -321,11 +321,11 @@ func TestTakePoints(t *testing.T) {
 			fn(counter)
 		}
 
-		// check counts
-		assert.Equalf(t, test.expectedResult, counter.takePoints(), "%s: unexpected response", test.name)
+		// check counts match
+		assert.ElementsMatchf(t, test.expectedResult, counter.takePoints(), "%s: unexpected counts response", test.name)
 
-		// check cleared
-		assert.Equalf(t, make([]*count, 0), counter.takePoints(), "%s: unexpected response", test.name)
+		// check that no counts remain after last takeCounts
+		assert.ElementsMatchf(t, make([]*count, 0), counter.takePoints(), "%s: unexpected empty counts response", test.name)
 	}
 
 }

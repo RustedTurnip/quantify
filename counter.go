@@ -28,7 +28,7 @@ type Counter struct {
 	// to before moving on to the next point.
 	interval int64
 
-	// counts is used to track the the running total of the counter in it's current
+	// counts is used to track the running total of the counter in its current
 	// time frame. Each entry within this map represents the count over a provided
 	// interval of time.
 	counts *sync.Map
@@ -89,13 +89,11 @@ func (c *Counter) takePoints() []*count {
 		valueInt := *value.(*int64)
 
 		if keyInt >= currentFrame {
-			return false
+			return true // continue
 		}
 
 		completedCounts[keyInt] = valueInt
-
-		c.counts.Delete(key)
-
+		c.counts.Delete(keyInt)
 		return true
 	})
 
