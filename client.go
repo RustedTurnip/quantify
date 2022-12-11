@@ -9,9 +9,9 @@ import (
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
+	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
-	monitoringpb "google.golang.org/genproto/googleapis/monitoring/v3"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
