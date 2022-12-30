@@ -64,7 +64,10 @@ func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 	}
 
 	for _, option := range options {
-		option(quantifier)
+		err := option(quantifier)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// if quantifier.client isn't supplied with options
