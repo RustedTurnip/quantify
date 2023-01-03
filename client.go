@@ -4,6 +4,7 @@ package quantify
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"sync"
 	"time"
@@ -24,6 +25,10 @@ const (
 	customMetricRoot = "custom.googleapis.com"
 
 	defaultRefreshInterval = time.Minute
+
+	resourceLabelKeyProjectId = "project_id"
+
+	projectPathPrefix = "projects"
 )
 
 // metricCounter defines a wrapper around the Counter unit, tethering it to
@@ -163,7 +168,23 @@ func (q *Quantifier) run() {
 // interval is used to specify how counts should be aggregated, or in other
 // words, what level of precision is required when tracking cumulative
 // amounts. This value represents seconds.
+//
+// CreateCounter will return an error if the provided name does not match
+// Google's Metric_Type specification, or if any of the provided label keys
+// under the labels parameter do not match Google's requirements. Refer to
+// this link for more information:
+// https://cloud.google.com/monitoring/api/v3/naming-conventions
 func (q *Quantifier) CreateCounter(name string, labels map[string]string, interval int64) (*Counter, error) {
+
+	if !isMetricTypeValid(name) {
+		return nil, fmt.Errorf("invalid name parameter provided")
+	}
+
+	for key := range labels {
+		if !isMetricLabelKeyValid(key) {
+			return nil, fmt.Errorf("invalid label key provided: %s", key)
+		}
+	}
 
 	counter, err := newCounter(interval)
 	if err != nil {
@@ -186,32 +207,23 @@ func (q *Quantifier) CreateCounter(name string, labels map[string]string, interv
 // like counters.
 func (q *Quantifier) report() {
 
+	series := make([]*monitoringpb.TimeSeries, 0)
+
 	for _, mc := range q.counters {
 
+		// generate request
 		points := make([]*monitoringpb.Point, 0)
 		for _, point := range mc.counter.takePoints() {
 			points = append(points, countToMetricPointProto(point))
 		}
 
-		req := &monitoringpb.CreateTimeSeriesRequest{
-			Name: "projects/" + q.resourceLabels["project_id"],
-			TimeSeries: []*monitoringpb.TimeSeries{
-				{
-					Metric:     mc.metric,
-					MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
-					Resource: &monitoredres.MonitoredResource{
-						Type:   q.resourceName,
-						Labels: q.resourceLabels,
-					},
-					Points: points,
-				},
-			},
-		}
+		series = append(series, q.createTimeSeriesProto(mc.metric, points))
+	}
 
-		err := q.client.CreateTimeSeries(context.Background(), req)
-		if err != nil {
-			q.errorHandler(q, err)
-		}
+	// send request
+	err := q.client.CreateTimeSeries(context.Background(), q.createCreateTimeSeriesRequestProto(series))
+	if err != nil {
+		q.errorHandler(q, err)
 	}
 }
 
@@ -238,6 +250,10 @@ func (q *Quantifier) Stop() {
 }
 
 // countToMetricPointProto converts a count into a monitoringpb.Point.
+//
+// note: the duration between the start and end times must be greater than
+// 2 milliseconds for a valid Point as countToMetricPointProto will take 1
+// millisecond from the end time.
 func countToMetricPointProto(count *count) *monitoringpb.Point {
 	return &monitoringpb.Point{
 		Interval: &monitoringpb.TimeInterval{
@@ -252,5 +268,33 @@ func countToMetricPointProto(count *count) *monitoringpb.Point {
 				Int64Value: count.count,
 			},
 		},
+	}
+}
+
+// getGcpProjectPath takes a project id and returns the expected GCP project path.
+func getGcpProjectPath(projectId string) string {
+	return path.Join(projectPathPrefix, projectId)
+}
+
+// createTimeSeriesProto compiles a monitoringpb.TimeSeries proto that can be submitted
+// to Google Cloud Monitoring within a monitoringpb.CreateTimeSeriesRequest.
+func (q *Quantifier) createTimeSeriesProto(metric *metricpb.Metric, points []*monitoringpb.Point) *monitoringpb.TimeSeries {
+	return &monitoringpb.TimeSeries{
+		Metric:     metric,
+		MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
+		Resource: &monitoredres.MonitoredResource{
+			Type:   q.resourceName,
+			Labels: q.resourceLabels,
+		},
+		Points: points,
+	}
+}
+
+// createCreateTimeSeriesRequestProto compiles a monitoringpb.CreateTimeSeriesRequest proto
+// within the Quantifiers project scope with the provided []*monitoringpb.TimeSeries.
+func (q *Quantifier) createCreateTimeSeriesRequestProto(series []*monitoringpb.TimeSeries) *monitoringpb.CreateTimeSeriesRequest {
+	return &monitoringpb.CreateTimeSeriesRequest{
+		Name:       getGcpProjectPath(q.resourceLabels[resourceLabelKeyProjectId]),
+		TimeSeries: series,
 	}
 }

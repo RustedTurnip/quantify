@@ -1,7 +1,7 @@
 package quantify
 
 import (
-	"errors"
+	"fmt"
 	"time"
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
@@ -26,19 +26,19 @@ func OptionWithCloudMetricsClient(client *monitoring.MetricClient) Option {
 func OptionWithResourceType(resource Resource) Option {
 	return func(quantifier *Quantifier) error {
 
-		quantifier.resourceName = resource.GetName()
-
 		resourceLabels, err := flatten(resource)
 		if err != nil {
 			return err
 		}
 
-		value, ok := resourceLabels["project_id"]
+		value, ok := resourceLabels[resourceLabelKeyProjectId]
 		if !ok || value == "" {
-			return errors.New("missing required project_id resource label")
+			return fmt.Errorf("missing required %s resource label", resourceLabelKeyProjectId)
 		}
 
 		quantifier.resourceLabels = resourceLabels
+		quantifier.resourceName = resource.GetName()
+
 		return nil
 	}
 }

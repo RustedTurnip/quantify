@@ -85,6 +85,12 @@ func flatten(v Resource) (map[string]string, error) {
 	result := make(map[string]string)
 
 	rv := reflect.ValueOf(v)
+
+	// if pointer, unwrap to get underlying struct
+	if rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+
 	t := rv.Type()
 
 	for i := 0; i < t.NumField(); i++ {
