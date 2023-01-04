@@ -11,6 +11,7 @@ import (
 
 	monitoring "cloud.google.com/go/monitoring/apiv3"
 	monitoringpb "cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
+	"github.com/benbjohnson/clock"
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -42,6 +43,7 @@ type metricCounter struct {
 // Cloud Monitoring.
 type Quantifier struct {
 	ctx             context.Context
+	clock           clock.Clock
 	mu              *sync.Mutex
 	stop            chan struct{}
 	stopped         chan struct{}
@@ -63,6 +65,7 @@ func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 	// build Quantifier
 	quantifier := &Quantifier{
 		ctx:             ctx,
+		clock:           clock.New(),
 		mu:              &sync.Mutex{},
 		stopped:         make(chan struct{}),
 		refreshInterval: defaultRefreshInterval,
@@ -131,12 +134,21 @@ func (q *Quantifier) run() {
 	q.stop = make(chan struct{})
 	q.mu.Unlock()
 
-	t := time.NewTicker(q.refreshInterval)
+	q.runTicker(q.clock.Ticker(q.refreshInterval), q.report)
+}
+
+// runTicker starts a blocking operation that will call the provided function (fn)
+// at the configured Quantifier.refreshInterval.
+//
+// The function will cease when a stop signal is received (Quantifier.Stop) or when
+// the Quantifier.ctx is cancelled.
+func (q *Quantifier) runTicker(t *clock.Ticker, fn func()) {
 
 	stop := func() {
 		q.mu.Lock()
 		q.running = false
 		close(q.stop)
+		q.stopped <- struct{}{}
 		q.mu.Unlock()
 	}
 
@@ -145,7 +157,7 @@ func (q *Quantifier) run() {
 
 		// when interval passes, send data
 		case <-t.C:
-			q.report()
+			fn()
 
 		// when context cancelled, exit immediately
 		case <-q.ctx.Done():
@@ -154,7 +166,8 @@ func (q *Quantifier) run() {
 
 		// when stop requested, stop gracefully
 		case <-q.stop:
-			q.report() // flush any remaining counts
+			fmt.Println("stopping")
+			fn() // flush
 			stop()
 			return
 

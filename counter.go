@@ -5,6 +5,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/benbjohnson/clock"
 )
 
 // count represents a tally over a duration of time.
@@ -36,7 +38,7 @@ type Counter struct {
 	mu *sync.Mutex
 
 	// clock used to retrieve time.
-	clock clock
+	clock clock.Clock
 }
 
 // newCounter returns an instantiated Counter, storing the provided metric information
@@ -48,7 +50,7 @@ func newCounter(interval int64) (*Counter, error) {
 	}
 
 	return &Counter{
-		clock:    &realClock{},
+		clock:    clock.New(),
 		interval: interval,
 		counts:   &sync.Map{},
 		mu:       &sync.Mutex{},
@@ -68,7 +70,7 @@ func (c *Counter) Count() {
 // getKey returns a unique key for the current time period using time.Now. The key
 // represents the starting time of the period as seconds since epoch.
 func (c *Counter) getKey() int64 {
-	return c.clock.now().Truncate(time.Second * time.Duration(c.interval)).Unix()
+	return c.clock.Now().Truncate(time.Second * time.Duration(c.interval)).Unix()
 }
 
 // takePoints retrieves any outstanding counts for time intervals that have already

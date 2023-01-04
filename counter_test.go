@@ -5,16 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 )
-
-type mockClock struct {
-	nowTime time.Time
-}
-
-func (mc *mockClock) now() time.Time {
-	return mc.nowTime
-}
 
 func TestGetKey(t *testing.T) {
 
@@ -46,9 +39,8 @@ func TestGetKey(t *testing.T) {
 
 	for _, test := range tests {
 
-		clock := &mockClock{
-			nowTime: test.time,
-		}
+		clock := clock.NewMock()
+		clock.Set(test.time)
 
 		counter := &Counter{
 			clock:    clock,
@@ -105,7 +97,7 @@ func TestCount(t *testing.T) {
 	for _, test := range tests {
 
 		counter := &Counter{
-			clock:  &mockClock{},
+			clock:  clock.NewMock(),
 			counts: &sync.Map{},
 			mu:     &sync.Mutex{},
 		}
@@ -143,9 +135,9 @@ func TestTakePoints(t *testing.T) {
 
 				// increment time (10 seconds)
 				func(c *Counter) {
-					c.clock = &mockClock{
-						c.clock.now().Add(time.Second * 10),
-					}
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 10))
+					c.clock = newTime
 				},
 
 				// count 25
@@ -157,9 +149,9 @@ func TestTakePoints(t *testing.T) {
 
 				// increment time (10 seconds)
 				func(c *Counter) {
-					c.clock = &mockClock{
-						c.clock.now().Add(time.Second * 10),
-					}
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 10))
+					c.clock = newTime
 				},
 			},
 			expectedResult: []*count{
@@ -203,9 +195,9 @@ func TestTakePoints(t *testing.T) {
 
 				// increment time (60 seconds)
 				func(c *Counter) {
-					c.clock = &mockClock{
-						c.clock.now().Add(time.Second * 60),
-					}
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 60))
+					c.clock = newTime
 				},
 
 				// increment 50
@@ -230,9 +222,9 @@ func TestTakePoints(t *testing.T) {
 
 				// increment time (60 seconds)
 				func(c *Counter) {
-					c.clock = &mockClock{
-						c.clock.now().Add(time.Second * 60),
-					}
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 60))
+					c.clock = newTime
 				},
 			},
 			expectedResult: []*count{
@@ -263,9 +255,9 @@ func TestTakePoints(t *testing.T) {
 
 				// increment time (10 seconds)
 				func(c *Counter) {
-					c.clock = &mockClock{
-						c.clock.now().Add(time.Second * 10),
-					}
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 10))
+					c.clock = newTime
 				},
 
 				// count 25
@@ -277,9 +269,9 @@ func TestTakePoints(t *testing.T) {
 
 				// increment time (10 seconds)
 				func(c *Counter) {
-					c.clock = &mockClock{
-						c.clock.now().Add(time.Second * 10),
-					}
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 10))
+					c.clock = newTime
 				},
 
 				// count 82
@@ -306,9 +298,8 @@ func TestTakePoints(t *testing.T) {
 
 	for _, test := range tests {
 
-		clock := &mockClock{
-			nowTime: test.startTime,
-		}
+		clock := clock.NewMock()
+		clock.Set(test.startTime)
 
 		counter := &Counter{
 			clock:    clock,

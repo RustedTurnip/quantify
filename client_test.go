@@ -1,12 +1,15 @@
 package quantify
 
 import (
+	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"cloud.google.com/go/monitoring/apiv3/v2/monitoringpb"
+	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	metricpb "google.golang.org/genproto/googleapis/api/metric"
 	"google.golang.org/genproto/googleapis/api/monitoredres"
@@ -279,7 +282,7 @@ func TestQuantifier_CreateCounter(t *testing.T) {
 							interval: 10,
 							counts:   &sync.Map{},
 							mu:       &sync.Mutex{},
-							clock:    &realClock{},
+							clock:    clock.New(),
 						},
 					},
 				},
@@ -301,7 +304,7 @@ func TestQuantifier_CreateCounter(t *testing.T) {
 							interval: 10,
 							counts:   &sync.Map{},
 							mu:       &sync.Mutex{},
-							clock:    &realClock{},
+							clock:    clock.New(),
 						},
 					},
 				},
@@ -324,7 +327,7 @@ func TestQuantifier_CreateCounter(t *testing.T) {
 							interval: 10,
 							counts:   &sync.Map{},
 							mu:       &sync.Mutex{},
-							clock:    &realClock{},
+							clock:    clock.New(),
 						},
 					},
 					{
@@ -338,7 +341,7 @@ func TestQuantifier_CreateCounter(t *testing.T) {
 							interval: 52,
 							counts:   &sync.Map{},
 							mu:       &sync.Mutex{},
-							clock:    &realClock{},
+							clock:    clock.New(),
 						},
 					},
 				},
@@ -418,5 +421,85 @@ func TestQuantifier_CreateCounter(t *testing.T) {
 		if err == nil {
 			assert.Equalf(t, test.client.counters[len(test.client.counters)-1].counter, counter, "%s failed", test.name)
 		}
+	}
+}
+
+func TestQuantifier_runTicker(t *testing.T) {
+
+	tests := []struct {
+		name               string
+		iterations         int
+		expectedIterations int
+		terminate          func(quantifier *Quantifier)
+	}{
+		{
+			name:               "runTicker - zero iterations ctx cancelled",
+			iterations:         0,
+			expectedIterations: 0,
+			terminate: func(quantifier *Quantifier) {
+				_, cancel := context.WithCancel(quantifier.ctx)
+				cancel()
+			},
+		},
+		{
+			name:               "runTicker - multiple iterations ctx cancelled",
+			iterations:         52,
+			expectedIterations: 52,
+			terminate: func(quantifier *Quantifier) {
+				_, cancel := context.WithCancel(quantifier.ctx)
+				cancel()
+			},
+		},
+		{
+			name:               "runTicker - zero iterations stopped",
+			iterations:         0,
+			expectedIterations: 1,
+			terminate: func(quantifier *Quantifier) {
+				quantifier.Stop()
+			},
+		},
+		{
+			name:               "runTicker - multiple iterations stopped",
+			iterations:         365,
+			expectedIterations: 366,
+			terminate: func(quantifier *Quantifier) {
+				quantifier.Stop()
+			},
+		},
+	}
+
+	for _, test := range tests {
+
+		// initialise *Quantifier client
+		mockClock := clock.NewMock()
+		client := &Quantifier{
+			clock:           mockClock,
+			mu:              &sync.Mutex{},
+			ctx:             context.Background(),
+			stop:            make(chan struct{}),
+			stopped:         make(chan struct{}),
+			refreshInterval: time.Second * 10,
+			running:         true,
+		}
+
+		count := int64(0)
+		ticker := client.clock.Ticker(client.refreshInterval)
+
+		// start ticker listener
+		go func() {
+			client.runTicker(ticker, func() {
+				atomic.AddInt64(&count, 1)
+			})
+		}()
+
+		// tick x times
+		for i := 0; i < test.iterations; i++ {
+			mockClock.Add(client.refreshInterval)
+		}
+
+		// terminate ticker as described by test
+		test.terminate(client)
+
+		assert.Equalf(t, test.expectedIterations, int(count), "%s failed", test.name)
 	}
 }
