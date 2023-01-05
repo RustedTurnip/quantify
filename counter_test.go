@@ -1,6 +1,7 @@
 package quantify
 
 import (
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -319,4 +320,46 @@ func TestTakePoints(t *testing.T) {
 		assert.ElementsMatchf(t, make([]*count, 0), counter.takePoints(), "%s: unexpected empty counts response", test.name)
 	}
 
+}
+
+func TestCounter_newCounter(t *testing.T) {
+
+	tests := []struct {
+		name            string
+		interval        int64
+		expectedCounter *Counter
+		expectedError   error
+	}{
+		{
+			name:     "newCounter - normal interval",
+			interval: 10,
+			expectedCounter: &Counter{
+				clock:    clock.New(),
+				interval: 10,
+				counts:   &sync.Map{},
+				mu:       &sync.Mutex{},
+			},
+			expectedError: nil,
+		},
+		{
+			name:            "newCounter - zero interval",
+			interval:        0,
+			expectedCounter: nil,
+			expectedError:   errors.New("interval must be greater than 0"),
+		},
+		{
+			name:            "newCounter - negative interval",
+			interval:        -50,
+			expectedCounter: nil,
+			expectedError:   errors.New("interval must be greater than 0"),
+		},
+	}
+
+	for _, test := range tests {
+
+		counter, err := newCounter(test.interval)
+
+		assert.Equalf(t, test.expectedCounter, counter, "%s failed", test.name)
+		assert.Equalf(t, test.expectedError, err, "%s failed", test.name)
+	}
 }
