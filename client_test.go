@@ -503,3 +503,51 @@ func TestQuantifier_runTicker(t *testing.T) {
 		assert.Equalf(t, test.expectedIterations, int(count), "%s failed", test.name)
 	}
 }
+
+func TestQuantifier_Stop(t *testing.T) {
+
+	// declared outside so that the pointer value can be shared with client assertion later
+	stop := make(chan struct{})
+	stopped := make(chan struct{})
+
+	// initialise *Quantifier client
+	mockClock := clock.NewMock()
+	client := &Quantifier{
+		clock:           mockClock,
+		mu:              &sync.Mutex{},
+		ctx:             context.Background(),
+		stop:            stop,
+		stopped:         stopped,
+		refreshInterval: time.Second * 10,
+		running:         true,
+	}
+
+	closed := false
+
+	ticker := client.clock.Ticker(client.refreshInterval)
+
+	// start ticker listener
+	go func() {
+		client.runTicker(ticker, func() {
+			closed = true
+		})
+	}()
+
+	client.Stop()
+
+	// assert that function ran correctly
+	assert.True(t, closed)
+
+	// assert that client is in "stopped" state
+	expected := &Quantifier{
+		clock:           mockClock,
+		mu:              &sync.Mutex{},
+		ctx:             context.Background(),
+		stop:            stop,
+		stopped:         stopped,
+		refreshInterval: time.Second * 10,
+		running:         false,
+	}
+
+	assert.Equal(t, expected, client)
+}
