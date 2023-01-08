@@ -59,29 +59,28 @@ func TestQuantifier_createTimeSeriesProto(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		pointsInput []*monitoringpb.Point
+		pointsInput *monitoringpb.Point
 		metricInput *metricpb.Metric
 		client      *Quantifier
 		expected    *monitoringpb.TimeSeries
 	}{
 		{
 			name: "single point, normal",
-			pointsInput: []*monitoringpb.Point{
-				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1672693348, // 2023-01-02 21:02:28
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1672693407, // 2023-01-02 21:03:28
-							Nanos:   999000000,
-						},
+			pointsInput: &monitoringpb.Point{
+
+				Interval: &monitoringpb.TimeInterval{
+					StartTime: &timestamppb.Timestamp{
+						Seconds: 1672693348, // 2023-01-02 21:02:28
+						Nanos:   0,
 					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 365,
-						},
+					EndTime: &timestamppb.Timestamp{
+						Seconds: 1672693407, // 2023-01-02 21:03:28
+						Nanos:   999000000,
+					},
+				},
+				Value: &monitoringpb.TypedValue{
+					Value: &monitoringpb.TypedValue_Int64Value{
+						Int64Value: 365,
 					},
 				},
 			},
@@ -126,114 +125,6 @@ func TestQuantifier_createTimeSeriesProto(t *testing.T) {
 						Value: &monitoringpb.TypedValue{
 							Value: &monitoringpb.TypedValue_Int64Value{
 								Int64Value: 365,
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "multiple points, normal",
-			pointsInput: []*monitoringpb.Point{
-				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1672693348, // 2023-01-02 21:02:28
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1672693407, // 2023-01-02 21:03:28
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 365,
-						},
-					},
-				},
-				{
-					Interval: &monitoringpb.TimeInterval{
-						StartTime: &timestamppb.Timestamp{
-							Seconds: 1672693408, // 2023-01-02 21:03:28
-							Nanos:   0,
-						},
-						EndTime: &timestamppb.Timestamp{
-							Seconds: 1672693467, // 2023-01-02 21:04:27
-							Nanos:   999000000,
-						},
-					},
-					Value: &monitoringpb.TypedValue{
-						Value: &monitoringpb.TypedValue_Int64Value{
-							Int64Value: 982,
-						},
-					},
-				},
-			},
-			metricInput: &metricpb.Metric{
-				Type: "custom.googleapis.com/test-metric-multiple",
-				Labels: map[string]string{
-					"colour": "red",
-					"shape":  "circle",
-				},
-			},
-			client: &Quantifier{
-				resourceName: "gce_instance",
-				resourceLabels: map[string]string{
-					"project_id":  "quantify",
-					"instance_id": "1234567890",
-					"zone":        "europe-west1",
-				},
-			},
-			expected: &monitoringpb.TimeSeries{
-				Metric: &metricpb.Metric{
-					Type: "custom.googleapis.com/test-metric-multiple",
-					Labels: map[string]string{
-						"colour": "red",
-						"shape":  "circle",
-					},
-				},
-				MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
-				Resource: &monitoredres.MonitoredResource{
-					Type: "gce_instance",
-					Labels: map[string]string{
-						"project_id":  "quantify",
-						"instance_id": "1234567890",
-						"zone":        "europe-west1",
-					},
-				},
-				Points: []*monitoringpb.Point{
-					{
-						Interval: &monitoringpb.TimeInterval{
-							StartTime: &timestamppb.Timestamp{
-								Seconds: 1672693348, // 2023-01-02 21:02:28
-								Nanos:   0,
-							},
-							EndTime: &timestamppb.Timestamp{
-								Seconds: 1672693407, // 2023-01-02 21:03:28
-								Nanos:   999000000,
-							},
-						},
-						Value: &monitoringpb.TypedValue{
-							Value: &monitoringpb.TypedValue_Int64Value{
-								Int64Value: 365,
-							},
-						},
-					},
-					{
-						Interval: &monitoringpb.TimeInterval{
-							StartTime: &timestamppb.Timestamp{
-								Seconds: 1672693408, // 2023-01-02 21:03:28
-								Nanos:   0,
-							},
-							EndTime: &timestamppb.Timestamp{
-								Seconds: 1672693467, // 2023-01-02 21:04:27
-								Nanos:   999000000,
-							},
-						},
-						Value: &monitoringpb.TypedValue{
-							Value: &monitoringpb.TypedValue_Int64Value{
-								Int64Value: 982,
 							},
 						},
 					},
@@ -451,19 +342,19 @@ func TestQuantifier_runTicker(t *testing.T) {
 			},
 		},
 		{
-			name:               "runTicker - zero iterations stopped",
+			name:               "runTicker - zero iterations terminated",
 			iterations:         0,
-			expectedIterations: 1,
+			expectedIterations: 0,
 			terminate: func(quantifier *Quantifier) {
-				quantifier.Stop()
+				quantifier.terminate()
 			},
 		},
 		{
-			name:               "runTicker - multiple iterations stopped",
+			name:               "runTicker - multiple iterations terminated",
 			iterations:         365,
-			expectedIterations: 366,
+			expectedIterations: 365,
 			terminate: func(quantifier *Quantifier) {
-				quantifier.Stop()
+				quantifier.terminate()
 			},
 		},
 	}
@@ -504,7 +395,7 @@ func TestQuantifier_runTicker(t *testing.T) {
 	}
 }
 
-func TestQuantifier_Stop(t *testing.T) {
+func TestQuantifier_terminate(t *testing.T) {
 
 	// declared outside so that the pointer value can be shared with client assertion later
 	stop := make(chan struct{})
@@ -522,21 +413,14 @@ func TestQuantifier_Stop(t *testing.T) {
 		running:         true,
 	}
 
-	closed := false
-
 	ticker := client.clock.Ticker(client.refreshInterval)
 
 	// start ticker listener
 	go func() {
-		client.runTicker(ticker, func() {
-			closed = true
-		})
+		client.runTicker(ticker, func() {})
 	}()
 
-	client.Stop()
-
-	// assert that function ran correctly
-	assert.True(t, closed)
+	client.terminate()
 
 	// assert that client is in "stopped" state
 	expected := &Quantifier{

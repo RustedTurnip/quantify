@@ -116,6 +116,7 @@ func TestTakePoints(t *testing.T) {
 
 	tests := []struct {
 		name            string
+		current         bool
 		counterInterval int64
 		startTime       time.Time
 		setup           []func(*Counter)
@@ -123,6 +124,7 @@ func TestTakePoints(t *testing.T) {
 	}{
 		{
 			name:            "Single Thread, Multiple Instances",
+			current:         false,
 			counterInterval: 10,
 			startTime:       time.Unix(1670681776, 0), // 2022-10-12T14:16:16.0
 			setup: []func(*Counter){
@@ -154,6 +156,13 @@ func TestTakePoints(t *testing.T) {
 					newTime.Set(c.clock.Now().Add(time.Second * 10))
 					c.clock = newTime
 				},
+
+				// count 15
+				func(c *Counter) {
+					for i := 0; i < 25; i++ {
+						c.Count()
+					}
+				},
 			},
 			expectedResult: []*count{
 				{
@@ -169,7 +178,68 @@ func TestTakePoints(t *testing.T) {
 			},
 		},
 		{
+			name:            "Single Thread, Multiple Instances, Current",
+			current:         true,
+			counterInterval: 10,
+			startTime:       time.Unix(1670681776, 0), // 2022-10-12T14:16:16.0
+			setup: []func(*Counter){
+
+				// count 10
+				func(c *Counter) {
+					for i := 0; i < 10; i++ {
+						c.Count()
+					}
+				},
+
+				// increment time (10 seconds)
+				func(c *Counter) {
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 10))
+					c.clock = newTime
+				},
+
+				// count 25
+				func(c *Counter) {
+					for i := 0; i < 25; i++ {
+						c.Count()
+					}
+				},
+
+				// increment time (10 seconds)
+				func(c *Counter) {
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 10))
+					c.clock = newTime
+				},
+
+				// count 15
+				func(c *Counter) {
+					for i := 0; i < 15; i++ {
+						c.Count()
+					}
+				},
+			},
+			expectedResult: []*count{
+				{
+					start: time.Unix(1670681770, 0),
+					end:   time.Unix(1670681780, 0),
+					count: 10,
+				},
+				{
+					start: time.Unix(1670681780, 0),
+					end:   time.Unix(1670681790, 0),
+					count: 25,
+				},
+				{
+					start: time.Unix(1670681790, 0),
+					end:   time.Unix(1670681800, 0),
+					count: 15,
+				},
+			},
+		},
+		{
 			name:            "Multi-threaded, Multiple Instances",
+			current:         false,
 			counterInterval: 60,
 			startTime:       time.Unix(1670681776, 0), // 2022-10-12T14:16:16.0
 			setup: []func(*Counter){
@@ -227,6 +297,26 @@ func TestTakePoints(t *testing.T) {
 					newTime.Set(c.clock.Now().Add(time.Second * 60))
 					c.clock = newTime
 				},
+
+				// increment 80
+				func(c *Counter) {
+
+					wg := &sync.WaitGroup{}
+
+					for i := 0; i < 10; i++ {
+
+						wg.Add(1)
+
+						go func() {
+							defer wg.Done()
+							for i := 0; i < 8; i++ {
+								c.Count()
+							}
+						}()
+
+						wg.Wait()
+					}
+				},
 			},
 			expectedResult: []*count{
 				{
@@ -242,56 +332,101 @@ func TestTakePoints(t *testing.T) {
 			},
 		},
 		{
-			name:            "Single Thread, Current Interval",
-			counterInterval: 10,
+			name:            "Multi-threaded, Multiple Instances, Current",
+			current:         true,
+			counterInterval: 60,
 			startTime:       time.Unix(1670681776, 0), // 2022-10-12T14:16:16.0
 			setup: []func(*Counter){
 
-				// count 10
+				// count 250
 				func(c *Counter) {
-					for i := 0; i < 10; i++ {
-						c.Count()
-					}
-				},
 
-				// increment time (10 seconds)
-				func(c *Counter) {
-					newTime := clock.NewMock()
-					newTime.Set(c.clock.Now().Add(time.Second * 10))
-					c.clock = newTime
-				},
+					wg := &sync.WaitGroup{}
 
-				// count 25
-				func(c *Counter) {
 					for i := 0; i < 25; i++ {
-						c.Count()
+
+						wg.Add(1)
+
+						go func() {
+							defer wg.Done()
+							for i := 0; i < 10; i++ {
+								c.Count()
+							}
+						}()
+
+						wg.Wait()
 					}
 				},
 
-				// increment time (10 seconds)
+				// increment time (60 seconds)
 				func(c *Counter) {
 					newTime := clock.NewMock()
-					newTime.Set(c.clock.Now().Add(time.Second * 10))
+					newTime.Set(c.clock.Now().Add(time.Second * 60))
 					c.clock = newTime
 				},
 
-				// count 82
+				// increment 50
 				func(c *Counter) {
-					for i := 0; i < 82; i++ {
-						c.Count()
+
+					wg := &sync.WaitGroup{}
+
+					for i := 0; i < 10; i++ {
+
+						wg.Add(1)
+
+						go func() {
+							defer wg.Done()
+							for i := 0; i < 5; i++ {
+								c.Count()
+							}
+						}()
+
+						wg.Wait()
+					}
+				},
+
+				// increment time (60 seconds)
+				func(c *Counter) {
+					newTime := clock.NewMock()
+					newTime.Set(c.clock.Now().Add(time.Second * 60))
+					c.clock = newTime
+				},
+
+				// increment 80
+				func(c *Counter) {
+
+					wg := &sync.WaitGroup{}
+
+					for i := 0; i < 10; i++ {
+
+						wg.Add(1)
+
+						go func() {
+							defer wg.Done()
+							for i := 0; i < 8; i++ {
+								c.Count()
+							}
+						}()
+
+						wg.Wait()
 					}
 				},
 			},
 			expectedResult: []*count{
 				{
-					start: time.Unix(1670681770, 0),
-					end:   time.Unix(1670681780, 0),
-					count: 10,
+					start: time.Unix(1670681760, 0),
+					end:   time.Unix(1670681820, 0),
+					count: 250,
 				},
 				{
-					start: time.Unix(1670681780, 0),
-					end:   time.Unix(1670681790, 0),
-					count: 25,
+					start: time.Unix(1670681820, 0),
+					end:   time.Unix(1670681880, 0),
+					count: 50,
+				},
+				{
+					start: time.Unix(1670681880, 0),
+					end:   time.Unix(1670681940, 0),
+					count: 80,
 				},
 			},
 		},
@@ -314,10 +449,10 @@ func TestTakePoints(t *testing.T) {
 		}
 
 		// check counts match
-		assert.ElementsMatchf(t, test.expectedResult, counter.takePoints(), "%s: unexpected counts response", test.name)
+		assert.ElementsMatchf(t, test.expectedResult, counter.takePoints(test.current), "%s: unexpected counts response", test.name)
 
 		// check that no counts remain after last takeCounts
-		assert.ElementsMatchf(t, make([]*count, 0), counter.takePoints(), "%s: unexpected empty counts response", test.name)
+		assert.ElementsMatchf(t, make([]*count, 0), counter.takePoints(test.current), "%s: unexpected empty counts response", test.name)
 	}
 
 }

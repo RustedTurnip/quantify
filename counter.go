@@ -2,6 +2,7 @@ package quantify
 
 import (
 	"errors"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -77,7 +78,12 @@ func (c *Counter) getKey() int64 {
 // passed, and removes them from the counter. If an interval is being counted actively
 // when this is called, then that won't be retrieved until this is re-called after the
 // time period has concluded.
-func (c *Counter) takePoints() []*count {
+//
+// The returned points are ordered by start time ascending.
+//
+// The current parameter is used to request the current interval (when set to true) as
+// well as already completed intervals (if available).
+func (c *Counter) takePoints(current bool) []*count {
 
 	c.mu.Lock()
 
@@ -90,7 +96,8 @@ func (c *Counter) takePoints() []*count {
 		keyInt := key.(int64)
 		valueInt := *value.(*int64)
 
-		if keyInt >= currentFrame {
+		// if current interval wasn't requested, and currentFrame is current interval, skip
+		if !current && keyInt >= currentFrame {
 			return true // continue
 		}
 
@@ -110,6 +117,11 @@ func (c *Counter) takePoints() []*count {
 			count: v,
 		})
 	}
+
+	// sort responses
+	sort.Slice(response, func(i, j int) bool {
+		return response[i].start.Before(response[j].start)
+	})
 
 	return response
 }

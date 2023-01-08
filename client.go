@@ -134,7 +134,9 @@ func (q *Quantifier) run() {
 	q.stop = make(chan struct{})
 	q.mu.Unlock()
 
-	q.runTicker(q.clock.Ticker(q.refreshInterval), q.report)
+	q.runTicker(q.clock.Ticker(q.refreshInterval), func() {
+		q.report(false)
+	})
 }
 
 // runTicker starts a blocking operation that will call the provided function (fn)
@@ -166,8 +168,6 @@ func (q *Quantifier) runTicker(t *clock.Ticker, fn func()) {
 
 		// when stop requested, stop gracefully
 		case <-q.stop:
-			fmt.Println("stopping")
-			fn() // flush
 			stop()
 			return
 
@@ -218,25 +218,40 @@ func (q *Quantifier) CreateCounter(name string, labels map[string]string, interv
 
 // report flushes any metrics that can only be reported periodically,
 // like counters.
-func (q *Quantifier) report() {
+//
+// current is used to specify the inclusion of any current intervals
+// within the tracked counters.
+func (q *Quantifier) report(current bool) {
 
-	series := make([]*monitoringpb.TimeSeries, 0)
+	// each request must only have one point per counter, this multidimensional array
+	// tracks a single point from each counter as multiple points can be submitted as
+	// long as they are from different counters.
+	series := make([][]*monitoringpb.TimeSeries, 0)
 
 	for _, mc := range q.counters {
 
-		// generate request
-		points := make([]*monitoringpb.Point, 0)
-		for _, point := range mc.counter.takePoints() {
-			points = append(points, countToMetricPointProto(point))
-		}
+		pointCount := 0
 
-		series = append(series, q.createTimeSeriesProto(mc.metric, points))
+		// generate request
+		for _, point := range mc.counter.takePoints(current) {
+
+			// if series[pointCount] is out of bounds
+			if len(series) <= pointCount {
+				series = append(series, make([]*monitoringpb.TimeSeries, 0))
+			}
+
+			// split points out so only on point per metric per request
+			series[pointCount] = append(series[pointCount], q.createTimeSeriesProto(mc.metric, countToMetricPointProto(point)))
+			pointCount++
+		}
 	}
 
-	// send request
-	err := q.client.CreateTimeSeries(context.Background(), q.createCreateTimeSeriesRequestProto(series))
-	if err != nil {
-		q.errorHandler(q, err)
+	// send requests
+	for _, series := range series {
+		err := q.client.CreateTimeSeries(context.Background(), q.createCreateTimeSeriesRequestProto(series))
+		if err != nil {
+			q.errorHandler(q, err)
+		}
 	}
 }
 
@@ -247,6 +262,15 @@ func (q *Quantifier) report() {
 // Note: calling count on any of Quantifier's child counters after this call is made
 // won't result in reported metrics as Quantifier will have ceased operations.
 func (q *Quantifier) Stop() {
+
+	q.terminate()
+
+	// flush any remaining counts
+	q.report(true)
+}
+
+// terminate is the underlying close function used when the client needs to be stopped.
+func (q *Quantifier) terminate() {
 
 	q.mu.Lock()
 	if !q.running {
@@ -260,6 +284,7 @@ func (q *Quantifier) Stop() {
 
 	// wait for stopped
 	<-q.stopped
+
 }
 
 // countToMetricPointProto converts a count into a monitoringpb.Point.
@@ -289,9 +314,11 @@ func getGcpProjectPath(projectId string) string {
 	return path.Join(projectPathPrefix, projectId)
 }
 
-// createTimeSeriesProto compiles a monitoringpb.TimeSeries proto that can be submitted
-// to Google Cloud Monitoring within a monitoringpb.CreateTimeSeriesRequest.
-func (q *Quantifier) createTimeSeriesProto(metric *metricpb.Metric, points []*monitoringpb.Point) *monitoringpb.TimeSeries {
+// createTimeSeriesProto compiles a list of monitoringpb.TimeSeries protos
+// (one per provided point) that can be submitted to Google Cloud Monitoring
+// within a monitoringpb.CreateTimeSeriesRequest.
+func (q *Quantifier) createTimeSeriesProto(metric *metricpb.Metric, point *monitoringpb.Point) *monitoringpb.TimeSeries {
+
 	return &monitoringpb.TimeSeries{
 		Metric:     metric,
 		MetricKind: metricpb.MetricDescriptor_CUMULATIVE,
@@ -299,7 +326,9 @@ func (q *Quantifier) createTimeSeriesProto(metric *metricpb.Metric, points []*mo
 			Type:   q.resourceName,
 			Labels: q.resourceLabels,
 		},
-		Points: points,
+		Points: []*monitoringpb.Point{
+			point,
+		},
 	}
 }
 
