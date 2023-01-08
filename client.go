@@ -93,7 +93,7 @@ func New(ctx context.Context, options ...Option) (*Quantifier, error) {
 	if quantifier.resourceName == "" || quantifier.resourceLabels == nil {
 
 		// set to be global resource
-		option := OptionWithResourceType(&Global{
+		option := OptionWithResourceType(&ResourceGlobal{
 			ProjectId: DetectProjectId(),
 		})
 

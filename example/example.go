@@ -21,7 +21,7 @@ func main() {
 	cli, err := quantify.New(
 		ctx,
 		quantify.OptionWithCloudMetricsClient(m),
-		quantify.OptionWithResourceType(&quantify.Global{
+		quantify.OptionWithResourceType(&quantify.ResourceGlobal{
 			ProjectId: "quantify",
 		}),
 		quantify.OptionWithErrorHandler(func(quantifier *quantify.Quantifier, err error) {

@@ -22,7 +22,7 @@ func TestOptionWithResourceType(t *testing.T) {
 	}{
 		{
 			name: "normal input",
-			input: &GenericNode{
+			input: &ResourceGenericNode{
 				ProjectId: "test-project",
 				Location:  "test-location",
 				Namespace: "test-namespace",

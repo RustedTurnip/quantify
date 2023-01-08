@@ -25,17 +25,17 @@ type Resource interface {
 	GetName() string
 }
 
-type Global struct {
+type ResourceGlobal struct {
 	ProjectId string `cloud_resource_field:"project_id"`
 }
 
-type GceInstance struct {
+type ResourceGceInstance struct {
 	ProjectId  string `cloud_resource_field:"project_id"`
 	InstanceId string `cloud_resource_field:"instance_id"`
 	Zone       string `cloud_resource_field:"zone"`
 }
 
-type GkeContainer struct {
+type ResourceGkeContainer struct {
 	ProjectId     string `cloud_resource_field:"project_id"`
 	ClusterName   string `cloud_resource_field:"cluster_name"`
 	InstanceId    string `cloud_resource_field:"instance_id"`
@@ -45,14 +45,14 @@ type GkeContainer struct {
 	ContainerName string `cloud_resource_field:"container_name"`
 }
 
-type GenericNode struct {
+type ResourceGenericNode struct {
 	ProjectId string `cloud_resource_field:"project_id"`
 	Location  string `cloud_resource_field:"location"`
 	Namespace string `cloud_resource_field:"namespace"`
 	NodeId    string `cloud_resource_field:"node_id"`
 }
 
-type GenericTask struct {
+type ResourceGenericTask struct {
 	ProjectId string `cloud_resource_field:"project_id"`
 	Location  string `cloud_resource_field:"location"`
 	Namespace string `cloud_resource_field:"namespace"`
@@ -60,23 +60,23 @@ type GenericTask struct {
 	TaskId    string `cloud_resource_field:"task_id"`
 }
 
-func (g *Global) GetName() string {
+func (g *ResourceGlobal) GetName() string {
 	return resourceNameGlobal
 }
 
-func (gi *GceInstance) GetName() string {
+func (gi *ResourceGceInstance) GetName() string {
 	return resourceNameGceInstance
 }
 
-func (gc *GkeContainer) GetName() string {
+func (gc *ResourceGkeContainer) GetName() string {
 	return resourceNameGkeContainer
 }
 
-func (gn *GenericNode) GetName() string {
+func (gn *ResourceGenericNode) GetName() string {
 	return resourceNameGenericNode
 }
 
-func (gt *GenericTask) GetName() string {
+func (gt *ResourceGenericTask) GetName() string {
 	return resourceNameGenericTask
 }
 

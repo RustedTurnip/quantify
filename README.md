@@ -11,6 +11,30 @@ client with the aim of reducing its complexity.
 Curently, Quantify only supports the [CUMULATIVE MetricKind](https://cloud.google.com/monitoring/api/ref_v3/rest/v3/projects.metricDescriptors#metrickind).
 This allows tracking the running "counts" of things, for example, the number of error occurrences.
 
+## Resource Types
+
+Within Google Cloud Monitoring, there is a concept of resource types that allow you to specify where the metrics are
+being reported from ([more information here](https://cloud.google.com/monitoring/api/resources)).
+
+Quantify allows you to use a preconfigured Resource or create your own by implementing the provided Resource interface
+like in the following example:
+
+```go
+type ResourceGkeContainer struct {
+    ProjectId     string `cloud_resource_field:"project_id"`
+    ClusterName   string `cloud_resource_field:"cluster_name"`
+    InstanceId    string `cloud_resource_field:"instance_id"`
+    Zone          string `cloud_resource_field:"zone"`
+    NamespaceId   string `cloud_resource_field:"namespace_id"`
+    PodId         string `cloud_resource_field:"pod_id"`
+    ContainerName string `cloud_resource_field:"container_name"`
+}
+
+func (gc *ResourceGkeContainer) GetName() string {
+    return "gke_container"
+}
+```
+
 ## Example
 
 ### Create Client
@@ -27,7 +51,7 @@ preconfigured client to Quantify along with a chosen ResourceType.
     cli, err := quantify.New(
         context.Background(),
         quantify.OptionWithCloudMetricsClient(m),
-        quantify.OptionWithResourceType(&quantify.Global{
+        quantify.OptionWithResourceType(&quantify.ResourceGlobal{
             ProjectId: "quantify",
         }),
     )
