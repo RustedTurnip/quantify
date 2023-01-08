@@ -1,13 +1,15 @@
 package main
 
 import (
-	monitoring "cloud.google.com/go/monitoring/apiv3"
 	"context"
-	"google.golang.org/api/option"
 	"log"
 	"math/rand"
-	"quantify"
 	"time"
+
+	monitoring "cloud.google.com/go/monitoring/apiv3"
+	"google.golang.org/api/option"
+
+	"github.com/rustedturnip/quantify"
 )
 
 func main() {
